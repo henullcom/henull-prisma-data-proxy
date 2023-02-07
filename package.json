@@ -7,9 +7,6 @@
   "scripts": {
     "postinstall": "prisma generate"
   },
-  "prisma": {
-  "schema": "prisma/schema.prisma"
-},
   "dependencies": {
     "@prisma/client": "4.9.0",
     "prisma-data-proxy-alt": "2.0.2"
