@@ -1,0 +1,523 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+//LCeZCeJPeVbCxWR9eQBDS6bB8rHDL9u,
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["orderByNulls"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Site {
+  TOOL
+  INDIVIDUAL
+  COURSE
+  TEMPLATE
+  COMBO
+  TEAM
+}
+
+enum TimeValue {
+  HOUR
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+enum CouponType {
+  FIXED
+  PERCENTAGE
+}
+
+enum ToolMethod {
+  ANY
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+  OPTIONS
+  HEAD
+}
+
+enum ManageAccess {
+  PRODUCT
+  DOWNLOAD_LINK
+  INDIVIDUAL_CONTENT
+  TOOL_SETTING
+  TOOL_ACCOUNT
+  SUBSCRIPTION
+  CUSTOMER
+  PARTNER
+  ORDER
+}
+
+model Partner {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  homepage      String?
+  token         String         @default(uuid())
+  secret        String         @default(uuid())
+  isActivated   Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  customers     Customer[]
+  subscriptions Subscription[]
+
+  @@unique([name, token])
+}
+
+model Manager {
+  id          Int            @id @default(autoincrement())
+  username    String         @unique
+  secret      String
+  token       String         @default(uuid())
+  browserId   String         @default(uuid())
+  accesses    ManageAccess[]
+  isLeader    Boolean        @default(false)
+  isActivated Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([id, token, isActivated])
+}
+
+model Customer {
+  id              Int            @id @default(autoincrement())
+  name            String         @default("HEnull Customer")
+  email           String         @unique
+  password        String?
+  token           String         @default(uuid())
+  browserId       String         @default(uuid())
+  isActivated     Boolean        @default(true)
+  emailConfirmed  Boolean        @default(false)
+  isVIP           Boolean        @default(false)
+  balance         Decimal        @default(0) @db.Money
+  partnerId       Int
+  partner         Partner        @relation(fields: [partnerId], references: [id])
+  orders          Order[]
+  subscriptions   Subscription[]
+  acceptedCoupons Coupon[]       @relation("AcceptedCustomersCoupons")
+  deniedCoupons   Coupon[]       @relation("DeniedCustomersCoupons")
+  coupons         Coupon[]
+  deposits        Deposit[]
+  histories       History[]
+  inTeams         TeamMember[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  usages          ToolUsage[]
+
+  @@unique([id, token, isActivated])
+}
+
+model Category {
+  id              Int        @id @default(autoincrement())
+  name            String     @unique @default("Uncategorized")
+  parentId        Int?
+  parent          Category?  @relation(name: "Categories", fields: [parentId], references: [id])
+  products        Product[]
+  acceptedCoupons Coupon[]   @relation("AcceptedCategoriesCoupons")
+  deniedCoupons   Coupon[]   @relation("DeniedCategoriesCoupons")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  categories      Category[] @relation("Categories")
+}
+
+model Product {
+  id              Int              @id @default(autoincrement())
+  productId       String           @unique
+  name            String           @default("")
+  site            Site             @default(COMBO)
+  categories      Category[]
+  thumbnail       String?          @default("https://via.placeholder.com/400x600.png?text=Thumbnail")
+  isActivated     Boolean          @default(false)
+  isVIP           Boolean          @default(false)
+  details         ProductDetail?
+  options         ProductOption[]
+  groupBuy        GroupBuyProduct?
+  inCombos        Product[]        @relation("ComboProducts")
+  inTeams         TeamProduct[]    @relation("TeamProduct")
+  acceptedCoupons Coupon[]         @relation("AcceptedProductsCoupons")
+  deniedCoupons   Coupon[]         @relation("DeniedProductsCoupons")
+  subscriptions   Subscription[]
+  orders          Order[]
+  downloads       Download[]
+  teams           Team[]           @relation("TeamSubcription")
+  combos          Product[]        @relation("ComboProducts")
+  setting         ToolSetting?
+  team            TeamProduct?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  usages          ToolUsage[]
+}
+
+model ProductDetail {
+  id               Int      @id @default(autoincrement())
+  product          Product  @relation(fields: [productId], references: [id])
+  productId        Int      @unique
+  shortDescription String   @default("")
+  description      String   @default("")
+  notes            String[]
+  tags             String[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model GroupBuyProduct {
+  id           Int      @id @default(autoincrement())
+  product      Product  @relation(fields: [productId], references: [id])
+  productId    Int      @unique
+  deliveryAt   DateTime @default(now())
+  goal         Int      @default(10)
+  remaining    Int      @default(10)
+  discountRate Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ProductOption {
+  id              Int             @id @default(autoincrement())
+  name            String          @default("")
+  sku             String          @unique
+  isActivated     Boolean         @default(false)
+  isRenewal       Boolean         @default(false)
+  isTrial         Boolean         @default(false)
+  price           Decimal         @default(0) @db.Money
+  originalPrice   Decimal         @default(0) @db.Money
+  value           Int             @default(0)
+  timeValue       TimeValue       @default(DAY)
+  productId       Int
+  product         Product         @relation(fields: [productId], references: [id])
+  orders          Order[]
+  subscriptions   Subscription[]
+  gifts           ProductOption[] @relation("GiftsProductOptions")
+  inGifts         ProductOption[] @relation("GiftsProductOptions")
+  acceptedCoupons Coupon[]        @relation("AcceptedProductOptionsCoupons")
+  deniedCoupons   Coupon[]        @relation("DeniedProductOptionsCoupons")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([id, productId])
+  @@index([productId])
+}
+
+model Coupon {
+  id                     Int             @id @default(autoincrement())
+  coupon                 String          @unique
+  type                   CouponType      @default(FIXED)
+  value                  Int             @default(0)
+  quantity               Int             @default(0)
+  acceptedOrders         Order[]         @relation("AcceptedOrdersCoupons")
+  deniedOrders           Order[]         @relation("DeniedOrdersCoupons")
+  acceptedCustomers      Customer[]      @relation("AcceptedCustomersCoupons")
+  deniedCustomers        Customer[]      @relation("DeniedCustomersCoupons")
+  acceptedProducts       Product[]       @relation("AcceptedProductsCoupons")
+  deniedProducts         Product[]       @relation("DeniedProductsCoupons")
+  acceptedProductOptions ProductOption[] @relation("AcceptedProductOptionsCoupons")
+  deniedProductOptions   ProductOption[] @relation("DeniedProductOptionsCoupons")
+  acceptedCategories     Category[]      @relation("AcceptedCategoriesCoupons")
+  deniedCategories       Category[]      @relation("DeniedCategoriesCoupons")
+  acceptedSite           Site[]
+  deniedSite             Site[]
+  isActivated            Boolean         @default(true)
+  startedAt              DateTime        @default(now())
+  expiredAt              DateTime        @default(now())
+  orders                 Order[]
+  customers              Customer[]
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+}
+
+model UseCoin {
+  id          Int      @id @default(autoincrement())
+  fromOrderId Int
+  fromOrder   Order    @relation(name: "use", fields: [fromOrderId], references: [id])
+  coin        Decimal  @default(0) @db.Money
+  forOrderId  Int
+  forOrder    Order    @relation(name: "take", fields: [forOrderId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Order {
+  id              Int           @id @default(autoincrement())
+  orderId         String        @unique
+  customerId      Int
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  productOptionId Int
+  productOption   ProductOption @relation(fields: [productOptionId], references: [id])
+  productId       Int
+  product         Product       @relation(fields: [productId], references: [id])
+  subscription    Subscription?
+  coupon          Coupon?       @relation(fields: [couponId], references: [id])
+  couponId        Int?
+  price           Decimal       @default(0) @db.Money
+  discount        Decimal       @default(0) @db.Money
+  coin            Decimal       @default(0) @db.Money
+  total           Decimal       @default(0) @db.Money
+  paidAt          DateTime?
+  refundedAt      DateTime?
+  giveaway        Decimal       @default(0) @db.Money
+  expiredAt       DateTime      @default(now())
+  acceptedCoupons Coupon[]      @relation("AcceptedOrdersCoupons")
+  deniedCoupons   Coupon[]      @relation("DeniedOrdersCoupons")
+  histories       History[]
+  useCoins        UseCoin[]     @relation("use")
+  takeCoins       UseCoin[]     @relation("take")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Subscription {
+  id              Int           @id @default(autoincrement())
+  storeOrderId    String
+  partnerId       Int
+  partner         Partner       @relation(fields: [partnerId], references: [id])
+  productOptionId Int
+  productOption   ProductOption @relation(fields: [productOptionId], references: [id])
+  productId       Int
+  product         Product       @relation(fields: [productId], references: [id])
+  customerId      Int
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  orderId         Int?          @unique
+  order           Order?        @relation(fields: [orderId], references: [id])
+  quantity        Int           @default(1)
+  isActivated     Boolean       @default(true)
+  startedAt       DateTime?
+  expiredAt       DateTime?
+  individual      Individual?
+  team            Team?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([partnerId, storeOrderId, productOptionId])
+}
+
+model Voucher {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique
+  amount    Decimal   @default(0) @db.Money
+  deposit   Deposit?
+  appliedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Deposit {
+  id          Int       @id @default(autoincrement())
+  depositCode String?   @unique
+  customer    Customer  @relation(fields: [customerId], references: [id])
+  customerId  Int
+  voucherId   Int?      @unique
+  voucher     Voucher?  @relation(fields: [voucherId], references: [id])
+  amount      Decimal   @default(0) @db.Money
+  depositAt   DateTime?
+  refundedAt  DateTime?
+  histories   History[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model History {
+  id         Int      @id @default(autoincrement())
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId Int
+  order      Order?   @relation(fields: [orderId], references: [id])
+  orderId    Int?
+  deposit    Deposit? @relation(fields: [depositId], references: [id])
+  depositId  Int?
+  amount     Decimal  @default(0) @db.Money
+  before     Decimal  @default(0) @db.Money
+  after      Decimal  @default(0) @db.Money
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Individual {
+  id             Int          @id @default(autoincrement())
+  subscriptionId Int          @unique
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  content        String       @default("")
+  isDone         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Download {
+  id        Int      @id @default(autoincrement())
+  product   Product  @relation(fields: [productId], references: [id])
+  productId Int
+  link      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+model ToolAccount {
+  id              Int               @id @default(autoincrement())
+  accountId       String            @unique
+  username        String            @default("")
+  password        String            @default("")
+  loginUrl        String?
+  expiredAt       DateTime          @default(now())
+  proxyString     String?
+  userAgent       String?
+  replacements    ToolReplacement[]
+  headers         ToolHeader[]
+  cookies         Json              @default("[]")
+  storages        Json              @default("[]")
+  isActivated     Boolean           @default(false)
+  isBotLogged     Boolean           @default(false)
+  isCookieWorking Boolean           @default(false)
+  toolProducts    ToolProduct[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model ToolSetting {
+  id                    Int               @id @default(autoincrement())
+  product               Product           @relation(fields: [productId], references: [id])
+  productId             Int               @unique
+  isMaintenance         Boolean           @default(true)
+  isAllowBrowser        Boolean           @default(false)
+  isAllowApplication    Boolean           @default(false)
+  isAllowExtension      Boolean           @default(false)
+  shuffleAccount        Boolean           @default(false)
+  applicationExtensions String[]
+  browserExtensions     String[]
+  blockUrls             ToolBlockURL[]
+  replacements          ToolReplacement[]
+  removeHtmls           ToolRemoveHTML[]
+  origins               ToolOrigin[]
+  toolProducts          ToolProduct[]
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+}
+
+model ToolBlockURL {
+  id        Int         @id @default(autoincrement())
+  method    ToolMethod  @default(ANY)
+  url       String
+  setting   ToolSetting @relation(fields: [settingId], references: [id])
+  settingId Int
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([settingId, method, url])
+}
+
+model ToolRemoveHTML {
+  id        Int         @id @default(autoincrement())
+  origin    String
+  selectors String[]
+  setting   ToolSetting @relation(fields: [settingId], references: [id])
+  settingId Int
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([settingId, origin])
+}
+
+model ToolHeader {
+  id        Int         @id @default(autoincrement())
+  origin    String
+  headers   Json        @default("{}")
+  account   ToolAccount @relation(fields: [accountId], references: [id])
+  accountId Int
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([accountId, origin])
+}
+
+model ToolReplacement {
+  id        Int          @id @default(autoincrement())
+  from      String
+  to        String
+  setting   ToolSetting? @relation(fields: [settingId], references: [id])
+  settingId Int?
+  account   ToolAccount? @relation(fields: [accountId], references: [id])
+  accountId Int?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([settingId, from])
+  @@unique([accountId, from])
+}
+
+model ToolOrigin {
+  id        Int         @id @default(autoincrement())
+  domainId  String      @unique
+  origin    String
+  setting   ToolSetting @relation(fields: [settingId], references: [id])
+  settingId Int
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([settingId, origin])
+}
+
+model ToolProduct {
+  id          Int         @id @default(autoincrement())
+  setting     ToolSetting @relation(fields: [settingId], references: [id])
+  settingId   Int
+  account     ToolAccount @relation(fields: [accountId], references: [id])
+  accountId   Int
+  url         String
+  isActivated Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([settingId, accountId])
+}
+
+model TeamProduct {
+  id            Int      @id @default(autoincrement())
+  productId     Int      @unique
+  product       Product  @relation(fields: [productId], references: [id])
+  seat          Int      @default(1)
+  teamProductId Int
+  teamProduct   Product  @relation("TeamProduct", fields: [teamProductId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Team {
+  id             Int          @id @default(autoincrement())
+  subscriptionId Int          @unique
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  seat           Int          @default(1)
+  productId      Int
+  product        Product      @relation("TeamSubcription", fields: [productId], references: [id])
+  members        TeamMember[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model TeamMember {
+  id         Int      @id @default(autoincrement())
+  team       Team     @relation(fields: [teamId], references: [id])
+  teamId     Int
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model ToolUsage {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id])
+  name       String
+  count      Int      @default(1)
+  match      String[] @default([])
+  memo       String
+  content    String
+  createdAt  DateTime @default(now())
+}
